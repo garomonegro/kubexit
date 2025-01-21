@@ -1,4 +1,7 @@
 MAKE_DIR:=$(strip $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))"))
+TAG ?= latest
+IMG ?= docker.intuit.com/dev/patterns/kubernetes/iks-express/kubexit:${TAG}
+DOCKER_BUILDER ?= builderx
 
 .PHONY: help bin clean lint fix gomodules lint-gomodules gofmt lint-gofmt goimports lint-goimports lint-govet
 
@@ -49,3 +52,17 @@ lint-goimports:
 # vet go code
 lint-govet:
 	scripts/lint-govet.sh
+
+docker-builder:
+	@docker buildx inspect ${DOCKER_BUILDER} > /dev/null 2>&1; \
+	if [ $$? -eq 1 ]; then \
+		docker buildx create --use --bootstrap --name ${DOCKER_BUILDER}; \
+	else \
+		echo "Builder ${DOCKER_BUILDER} already exists"; \
+	fi
+
+docker-build: docker-builder
+	docker buildx build . -t "${IMG}" -f Dockerfile --platform "linux/amd64,linux/arm64" --builder ${DOCKER_BUILDER}
+
+docker-push: docker-builder
+	docker buildx build . -t "${IMG}" -f Dockerfile --platform "linux/amd64,linux/arm64" --builder ${DOCKER_BUILDER} --push
